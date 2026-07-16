@@ -57,18 +57,28 @@ class _AllInEffectState extends State<AllInEffect> with SingleTickerProviderStat
           return Opacity(
             opacity: opacity,
             child: Container(
-              color: AppColors.chipRed.withValues(alpha: 0.15),
+              color: Colors.black.withValues(alpha: 0.75),
               alignment: Alignment.center,
               child: Transform.scale(
                 scale: scale,
-                child: Text(
-                  'ALL IN!\n${widget.playerName}',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: AppColors.goldLight,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 40,
-                    shadows: [Shadow(color: Colors.black, blurRadius: 12)],
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: AppColors.chipRed.withValues(alpha: 0.35),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppColors.goldLight, width: 2),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
+                    child: Text(
+                      'ALL IN!\n${widget.playerName}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: AppColors.goldLight,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 36,
+                        shadows: [Shadow(color: Colors.black, blurRadius: 12)],
+                      ),
+                    ),
                   ),
                 ),
               ),
