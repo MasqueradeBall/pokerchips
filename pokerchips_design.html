@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>ポーカーチップアプリ 総合設計書 (完全版)</title>
+<style>
+    body { font-family: 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 1000px; margin: 0 auto; padding: 20px; background-color: #f4f6f8; }
+    h1 { color: #2c3e50; text-align: center; border-bottom: 2px solid #34495e; padding-bottom: 10px; margin-bottom: 30px;}
+    h2 { color: #2980b9; border-left: 4px solid #2980b9; padding-left: 10px; margin-top: 30px;}
+    h3 { color: #34495e; }
+    .section { background: #fff; padding: 25px; margin-bottom: 25px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+    ul { padding-left: 20px; }
+    li { margin-bottom: 8px; }
+    
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 14px; }
+    th, td { border: 1px solid #ecf0f1; padding: 12px; text-align: left; }
+    th { background-color: #f8f9fa; color: #2c3e50; font-weight: bold; }
+    
+    .wireframe-container { display: flex; gap: 40px; justify-content: center; flex-wrap: wrap; margin-top: 30px; }
+    .smartphone { width: 320px; height: 640px; border: 14px solid #222; border-radius: 36px; position: relative; background: #1a1a1a; overflow: hidden; box-shadow: 0 10px 20px rgba(0,0,0,0.2); box-sizing: border-box; }
+    .screen-title { text-align: center; color: #333; font-weight: bold; font-size: 14px; margin-top: 10px; }
+    
+    /* App UI Styles */
+    .home-screen { padding: 30px 20px; display: flex; flex-direction: column; gap: 15px; justify-content: center; height: 100%; box-sizing: border-box; color: white;}
+    .input-group { display: flex; flex-direction: column; gap: 5px; }
+    .input-label { font-size: 12px; color: #aaa; }
+    .btn-primary { background: #3498db; color: #fff; text-align: center; padding: 14px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+    .input-box { background: #333; color: #fff; padding: 12px; border-radius: 8px; border: 1px solid #555; text-align: center; font-size: 14px; }
+    .secret-word-area { margin-top: 20px; padding-top: 20px; border-top: 1px solid #444; }
+    
+    .play-screen { display: flex; flex-direction: column; height: 100%; color: white; background: #0e4c23; }
+    .header { display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; font-size: 12px; background: rgba(0,0,0,0.4); }
+    .hearts-container { color: #e74c3c; font-size: 14px; letter-spacing: 2px;}
+    
+    .pot-area { text-align: center; margin: 20px 0; }
+    .pot-label { font-size: 12px; color: #f1c40f; letter-spacing: 1px; }
+    .pot-amount { font-size: 36px; font-weight: bold; margin-top: -5px; }
+    
+    .players-area { flex: 1; position: relative; }
+    .player { position: absolute; text-align: center; width: 90px; }
+    .player-icon { width: 44px; height: 44px; background: #bdc3c7; border-radius: 50%; margin: 0 auto; border: 2px solid #fff; position: relative; display: flex; justify-content: center; align-items: center; color: #333; font-weight: bold; }
+    .player-name { font-size: 11px; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: bold;}
+    
+    .player-finances { background: rgba(0,0,0,0.5); border-radius: 6px; padding: 4px; margin-top: 4px; display: inline-block; text-align: left; }
+    .player-net-asset { font-size: 11px; color: #fff; font-weight: bold; }
+    .player-chips { font-size: 9px; color: #f1c40f; }
+    
+    .action-container { position: relative; display: inline-block; margin-top: 4px; }
+    .player-action { font-size: 10px; background: rgba(0,0,0,0.8); border: 1px solid #7f8c8d; border-radius: 4px; padding: 4px 8px; font-weight: bold;}
+    .action-undo-btn { position: absolute; top: -6px; right: -6px; background: #e74c3c; color: white; border-radius: 50%; width: 14px; height: 14px; font-size: 8px; line-height: 12px; font-weight: bold; text-align: center; border: 1px solid #fff; cursor: pointer; }
+    
+    .sys-message { background: rgba(0,0,0,0.85); color: #fff; padding: 12px; text-align: center; font-size: 14px; margin: 10px 20px; border-radius: 8px; border: 1px solid #f1c40f; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+
+    .p1 { bottom: 20px; left: 50%; transform: translateX(-50%); } 
+    .p2 { top: 25%; left: 0px; }
+    .p3 { top: 5%; left: 50%; transform: translateX(-50%); }
+    .p4 { top: 25%; right: 0px; }
+    
+    .action-bar { display: flex; gap: 8px; padding: 15px; background: #111; padding-bottom: 25px; }
+    .act-btn { flex: 1; padding: 12px 0; text-align: center; border-radius: 8px; font-size: 13px; font-weight: bold; }
+    .btn-fold { background: #555; color: white; }
+    .btn-check { background: #27ae60; color: white; }
+    .btn-raise { background: #d35400; color: white; }
+    .btn-allin { background: #c0392b; color: white; border: 1px solid #ff7979; }
+</style>
+</head>
+<body>
+
+<h1>ポーカーチップアプリ 総合設計書 (完全版)</h1>
+
+<div class="section">
+    <h2>1. システム構成・技術スタック</h2>
+    <ul>
+        <li><strong>フロントエンド:</strong> Flutter, Riverpod (状態管理)</li>
+        <li><strong>バックエンド・DB:</strong> Supabase (PostgreSQL, Supabase Realtime, Supabase Presence)</li>
+        <li><strong>ホスティング:</strong> Vercel</li>
+        <li><strong>マネタイズ (広告):</strong> Google Mobile Ads SDK (動画リワード広告)</li>
+    </ul>
+</div>
+
+<div class="section">
+    <h2>2. 基本ルールと進行管理</h2>
+    <ul>
+        <li><strong>現実とアプリの役割分担:</strong> 物理的なトランプを使用し、アプリは純粋にチップの計算と進行（ターン）管理のみを行う。</li>
+        <li><strong>ディーラーレス進行:</strong> ディーラー権限は存在せず、全員のベット額が揃ったタイミングをSupabase Realtimeで検知し、全プレイヤーの画面に「カードをめくってください」等のシステムメッセージを一斉表示してフェーズを進行させる。</li>
+        <li><strong>オールイン演出:</strong> オールインが発動した際は、全画面にアニメーションエフェクトを表示する。</li>
+    </ul>
+</div>
+
+<div class="section">
+    <h2>3. 権限とフェイルセーフ仕様</h2>
+    <ul>
+        <li><strong>ホスト権限:</strong> 部屋を作成したプレイヤーがホストとなる。ホスト自身が切断された場合、権限の自動移譲は行わず、復帰するまで全員で待機する。</li>
+        <li><strong>キック（退室）機能とデッドマネー:</strong> ホストは他プレイヤーをキックできる。キックされたプレイヤーがそのハンド中に賭けていたチップは返還されず、「デッドマネー」としてポットに残る。</li>
+        <li><strong>Undo（一手戻る）機能:</strong> 進行の時系列の矛盾を防ぐため、Undo用の「×」ボタンは<strong>一番最後（最新）にアクションしたプレイヤーのバッジにのみ</strong>ホスト画面で表示される。直前の1手のみ取り消しが可能。</li>
+    </ul>
+</div>
+
+<div class="section">
+    <h2>4. 資産管理と借金（10,000ドル単位）</h2>
+    <ul>
+        <li><strong>初期資金:</strong> 各プレイヤー $10,000 からスタート。</li>
+        <li><strong>ゼロサム原則:</strong> 全プレイヤーの「純資産（Net Asset）」の合計は、常に <code>(参加人数) × 10,000</code> になるように表示する。</li>
+        <li><strong>表示の分離:</strong> プレイヤーの資金は「純資産」と「手持ちチップ（Playable Chips）」に分けて表示する。</li>
+        <li><strong>借金のタイミング:</strong> テーブルステークス（プレイ中の有効スタック変動）の矛盾を防ぐため、10,000ドル単位の借金ボタンは、ゲーム中（ハンド進行中）は非表示とし、<strong>ハンドが終了した待機中のみ</strong>使用可能とする。借金すると手持ちチップが +10,000 されるが、純資産の評価は変動しない（負債として相殺されるため）。</li>
+    </ul>
+</div>
+
+<div class="section">
+    <h2>5. ハートシステムと動画広告</h2>
+    <ul>
+        <li><strong>基本仕様:</strong> プレイヤーごとに独立したハート（最大5）を持つ。1ゲーム（ハンド）ごとに1減少する。</li>
+        <li><strong>あいことば:</strong> ホーム画面で正しい「あいことば」を入力すると、DB上でフラグが立ち、ハートが減少しない（広告非表示）状態となる。</li>
+        <li><strong>動画広告による回復:</strong> ハートが0になったプレイヤーは、動画リワード広告を視聴することでハートを最大まで回復する。</li>
+        <li><strong>他プレイヤーの待機ロック:</strong> 誰かが広告を視聴している間、他の全プレイヤーの画面には「〇〇がハートを回復しています」と表示され、進行がロックされる。</li>
+        <li><strong>30秒タイムアウト機能 (切断対策):</strong> 広告視聴中のプレイヤーが通信切断や強制終了により復帰しない場合による「進行不能（ソフトロック）」を防ぐため、<strong>30秒経過で自動的にタイムアウト</strong>となり、当該プレイヤーは強制キック扱いとしてロックが解除される。</li>
+    </ul>
+</div>
+
+<div class="section">
+    <h2>6. データベース設計 (Supabase PostgreSQL)</h2>
+    <table>
+        <tr><th>テーブル名</th><th>主要カラム</th><th>説明</th></tr>
+        <tr>
+            <td><strong>rooms</strong></td>
+            <td>id, room_code, host_player_id, pot, highest_bet, current_phase, current_turn_player_id</td>
+            <td>部屋の状態と進行フェーズの管理</td>
+        </tr>
+        <tr>
+            <td><strong>players</strong></td>
+            <td>id, room_id, name, hearts, is_ad_free, borrow_count, current_bet, status</td>
+            <td>プレイヤーの状態。borrow_count (借金回数) を基に純資産を計算</td>
+        </tr>
+        <tr>
+            <td><strong>action_logs</strong></td>
+            <td>id, room_id, player_id, action_type, amount, created_at</td>
+            <td>Undo機能を実現するための直近アクションの履歴記録</td>
+        </tr>
+    </table>
+</div>
+
+<div class="section">
+    <h2>7. 画面UI モックアップ</h2>
+    <div class="wireframe-container">
+        
+        <!-- ホーム画面 -->
+        <div>
+            <div class="smartphone">
+                <div class="home-screen">
+                    <div style="text-align: center; font-size: 24px; font-weight: bold; margin-bottom: 10px;">POKER CHIPS</div>
+                    <div class="input-group">
+                        <span class="input-label">プレイヤー名 (必須)</span>
+                        <input type="text" class="input-box" value="Player1">
+                    </div>
+                    <div class="btn-primary" style="margin-top: 10px;">ルームを作成</div>
+                    <div style="color: #aaa; text-align: center; font-size: 12px;">または</div>
+                    <div class="input-group">
+                        <input type="text" class="input-box" placeholder="ルームID">
+                        <div class="btn-primary" style="background: #27ae60; margin-top: 5px;">参加する</div>
+                    </div>
+                    <div class="secret-word-area">
+                        <div class="input-group">
+                            <span class="input-label">あいことば (オプション)</span>
+                            <div style="display: flex; gap: 5px;">
+                                <input type="text" class="input-box" placeholder="入力" style="flex: 1;">
+                                <div class="btn-primary" style="background: #8e44ad; padding: 12px;">適用</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="screen-title">画面1: ホーム</div>
+        </div>
+
+        <!-- プレイ画面 -->
+        <div>
+            <div class="smartphone">
+                <div class="play-screen">
+                    <div class="header">
+                        <div class="hearts-container">❤️❤️❤️🤍🤍</div>
+                        <div>Room: 12345</div>
+                    </div>
+                    <div class="pot-area">
+                        <div class="pot-label">POT</div>
+                        <div class="pot-amount">$ 2,000</div>
+                    </div>
+                    <div class="players-area">
+                        <!-- プレイヤー (最新アクション・Undo対象) -->
+                        <div class="player p2">
+                            <div class="player-icon">B</div>
+                            <div class="player-name">User B</div>
+                            <div class="player-finances">
+                                <div class="player-net-asset">資産: $8,000</div>
+                                <div class="player-chips">手持ち: $8,000</div>
+                            </div>
+                            <div class="action-container">
+                                <div class="player-action">Call $500</div>
+                                <!-- 最新アクションにのみUndo表示 -->
+                                <div class="action-undo-btn">×</div>
+                            </div>
+                        </div>
+                        <!-- 借金状態のプレイヤー -->
+                        <div class="player p3">
+                            <div class="player-icon">C</div>
+                            <div class="player-name">User C</div>
+                            <div class="player-finances">
+                                <div class="player-net-asset" style="color: #e74c3c;">資産: $0</div>
+                                <div class="player-chips">手持ち: $10,000</div>
+                            </div>
+                        </div>
+                        <!-- 自分 -->
+                        <div class="player p1">
+                            <div class="player-icon" style="background: #f1c40f; color: #000;">You</div>
+                            <div class="player-name">You (Host)</div>
+                            <div class="player-finances">
+                                <div class="player-net-asset">資産: $12,000</div>
+                                <div class="player-chips">手持ち: $12,000</div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- 最小限のアクションボタン -->
+                    <div class="action-bar">
+                        <div class="act-btn btn-fold">Fold</div>
+                        <div class="act-btn btn-check">Call</div>
+                        <div class="act-btn btn-raise">Raise</div>
+                        <div class="act-btn btn-allin">ALL IN</div>
+                    </div>
+                </div>
+            </div>
+            <div class="screen-title">画面2: プレイ中 (純資産とUndo表示)</div>
+        </div>
+
+        <!-- 待機・広告・借金画面 -->
+        <div>
+            <div class="smartphone">
+                <div class="play-screen">
+                    <div class="header">
+                        <div class="hearts-container">❤️❤️❤️🤍🤍</div>
+                        <div>Room: 12345</div>
+                    </div>
+                    
+                    <div style="flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+                        <div class="sys-message" style="margin-bottom: 40px;">
+                            User B が<br>ハートを回復しています...<br>
+                            <span style="font-size: 10px; color: #f1c40f;">※30秒経過で自動キック</span>
+                        </div>
+                    </div>
+
+                    <!-- ハンド間待機時のみ借金ボタンが出現 -->
+                    <div class="action-bar" style="background: transparent; justify-content: center;">
+                         <div style="background: #c0392b; color: white; padding: 10px 20px; border-radius: 8px; font-size: 12px; border: 1px solid #ff7979; cursor: pointer; font-weight: bold;">
+                             +10k 借入する
+                         </div>
+                    </div>
+                </div>
+            </div>
+            <div class="screen-title">画面3: ハンド間待機 (広告待ち / 借金)</div>
+        </div>
+
+    </div>
+</div>
+
+</body>
+</html>
