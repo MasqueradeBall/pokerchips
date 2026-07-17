@@ -31,8 +31,16 @@ create table if not exists rooms (
   pending_to_act uuid[] not null default '{}',
   last_action jsonb,
   system_message text,
+  reveal_message text,
   ad_waiting_player_id uuid,
   ad_waiting_deadline timestamptz,
+  -- ブラインド/アンティ/初期チップ枚数。ロビー中のみホストが変更できる。
+  small_blind integer not null default 50,
+  big_blind integer not null default 100,
+  ante integer not null default 0,
+  starting_stack integer not null default 10000,
+  small_blind_player_id uuid,
+  big_blind_player_id uuid,
   -- Undo(直前の1手のみ取り消し)用に、直前アクション前のroom+players全体の
   -- スナップショットを保持する。undo実行時にこれを丸ごと書き戻す。
   previous_snapshot jsonb,
@@ -75,6 +83,13 @@ end $$;
 
 alter table rooms add column if not exists previous_snapshot jsonb;
 alter table rooms add column if not exists version integer not null default 0;
+alter table rooms add column if not exists reveal_message text;
+alter table rooms add column if not exists small_blind integer not null default 50;
+alter table rooms add column if not exists big_blind integer not null default 100;
+alter table rooms add column if not exists ante integer not null default 0;
+alter table rooms add column if not exists starting_stack integer not null default 10000;
+alter table rooms add column if not exists small_blind_player_id uuid;
+alter table rooms add column if not exists big_blind_player_id uuid;
 alter table players add column if not exists version integer not null default 0;
 
 -- 監査用の行動履歴(Undoの実現には previous_snapshot を使うため、

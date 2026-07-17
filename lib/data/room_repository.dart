@@ -35,6 +35,14 @@ abstract class RoomRepository {
   /// 次のハンドを開始する(待機中のみ)。
   void startNextHand();
 
+  /// ブラインド/アンティ/初期チップ枚数を変更する(ロビー中のホストのみ想定)。
+  void updateSettings({
+    int? smallBlind,
+    int? bigBlind,
+    int? ante,
+    int? startingStack,
+  });
+
   /// ショーダウンで勝者を選び、ポットを分配する。
   void awardPot(List<String> winnerIds);
 

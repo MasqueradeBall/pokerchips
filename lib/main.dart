@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -15,7 +17,9 @@ Future<void> main() async {
   if (Supabase.instance.client.auth.currentSession == null) {
     await Supabase.instance.client.auth.signInAnonymously();
   }
-  await AdService.initialize();
-  AdService.instance.preload();
   runApp(const ProviderScope(child: PokerChipsApp()));
+
+  // 広告SDKの初期化は数秒かかることがあり、初回描画をブロックしないよう
+  // runApp後にバックグラウンドで行う(ハートが尽きるまで広告は使われない)。
+  unawaited(AdService.initialize().then((_) => AdService.instance.preload()));
 }

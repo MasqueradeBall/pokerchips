@@ -13,6 +13,13 @@ class AppColors {
   static const chipGreen = Color(0xFF27AE60);
   static const surfaceDark = Color(0xFF11201A);
   static const surfaceCard = Color(0xFF16281F);
+
+  /// グラデーションの端色などに使う明るさ調整ユーティリティ。
+  static Color lighten(Color color, double amount) =>
+      Color.lerp(color, Colors.white, amount)!;
+
+  static Color darken(Color color, double amount) =>
+      Color.lerp(color, Colors.black, amount)!;
 }
 
 class AppTheme {
@@ -48,17 +55,28 @@ class AppTheme {
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.gold,
           foregroundColor: Colors.black,
+          disabledBackgroundColor: AppColors.gold.withValues(alpha: 0.18),
+          disabledForegroundColor: Colors.white30,
           padding: const EdgeInsets.symmetric(vertical: 16),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          elevation: 3,
+          shadowColor: Colors.black.withValues(alpha: 0.5),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: Colors.white,
-          side: const BorderSide(color: Colors.white54),
+          side: const BorderSide(color: Colors.white38),
           padding: const EdgeInsets.symmetric(vertical: 16),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: AppColors.goldLight,
+          textStyle: const TextStyle(fontWeight: FontWeight.w600),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -68,9 +86,37 @@ class AppTheme {
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
         ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: AppColors.gold.withValues(alpha: 0.55)),
+        ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         hintStyle: const TextStyle(color: Colors.white38),
         labelStyle: const TextStyle(color: Colors.white70),
+      ),
+      progressIndicatorTheme: const ProgressIndicatorThemeData(color: AppColors.gold),
+      dialogTheme: DialogThemeData(
+        backgroundColor: AppColors.surfaceCard,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(22),
+          side: BorderSide(color: AppColors.gold.withValues(alpha: 0.28)),
+        ),
+        titleTextStyle: const TextStyle(
+          color: Colors.white,
+          fontSize: 19,
+          fontWeight: FontWeight.bold,
+        ),
+        contentTextStyle: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.5),
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: AppColors.surfaceCard,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+        ),
       ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: AppColors.surfaceCard,

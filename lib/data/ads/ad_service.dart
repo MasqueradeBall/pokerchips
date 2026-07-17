@@ -18,7 +18,7 @@ class AdService {
       case TargetPlatform.android:
         return 'ca-app-pub-3940256099942544/5224354917';
       case TargetPlatform.iOS:
-        return 'ca-app-pub-3940256099942544/1712485313';
+        return 'ca-app-pub-1834741602239899/5962022663';
       default:
         return 'ca-app-pub-3940256099942544/5224354917';
     }

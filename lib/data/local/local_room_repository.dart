@@ -64,9 +64,17 @@ class LocalRoomRepository implements RoomRepository {
     ];
 
     final code = (10000 + _random.nextInt(90000)).toString();
-    final room = Room(code: code, hostPlayerId: hostId);
+    final room = Room(
+      code: code,
+      hostPlayerId: hostId,
+      smallBlind: GameConstants.defaultSmallBlind,
+      bigBlind: GameConstants.defaultBigBlind,
+      ante: GameConstants.defaultAnte,
+      startingStack: GameConstants.initialStack,
+    );
+    // オンライン版と挙動を揃えるため、ロビーで止めてホストが「ゲームを開始」を
+    // 押すまで待つ(ブラインド等の設定画面をデモでも試せるようにするため)。
     _setState(GameState(room: room, players: players), recordHistory: false);
-    startNextHand();
     return hostId;
   }
 
@@ -127,6 +135,27 @@ class LocalRoomRepository implements RoomRepository {
     final current = _state;
     if (current == null) return;
     _setState(PokerChipEngine.startHand(current), recordHistory: false);
+  }
+
+  @override
+  void updateSettings({
+    int? smallBlind,
+    int? bigBlind,
+    int? ante,
+    int? startingStack,
+  }) {
+    final current = _state;
+    if (current == null) return;
+    _setState(
+      PokerChipEngine.updateSettings(
+        current,
+        smallBlind: smallBlind,
+        bigBlind: bigBlind,
+        ante: ante,
+        startingStack: startingStack,
+      ),
+      recordHistory: false,
+    );
   }
 
   @override

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../core/constants.dart';
 import '../../domain/game_state.dart';
 import '../../domain/poker_chip_engine.dart';
 import '../../models/enums.dart';
@@ -56,6 +57,10 @@ class SupabaseRoomRepository implements RoomRepository {
           'room_code': code,
           'host_player_id': hostId,
           'phase': GamePhase.lobby.name,
+          'small_blind': GameConstants.defaultSmallBlind,
+          'big_blind': GameConstants.defaultBigBlind,
+          'ante': GameConstants.defaultAnte,
+          'starting_stack': GameConstants.initialStack,
         })
         .select()
         .single();
@@ -66,6 +71,7 @@ class SupabaseRoomRepository implements RoomRepository {
       'room_id': roomId,
       'name': hostName.trim().isEmpty ? 'あなた' : hostName.trim(),
       'is_host': true,
+      'chips': GameConstants.initialStack,
     });
 
     _roomId = roomId;
@@ -89,11 +95,14 @@ class SupabaseRoomRepository implements RoomRepository {
     }
 
     final playerId = _uuid.v4();
+    final startingStack =
+        roomRow['starting_stack'] as int? ?? GameConstants.initialStack;
     await _client.from('players').insert({
       'id': playerId,
       'room_id': roomId,
       'name': playerName.trim().isEmpty ? 'あなた' : playerName.trim(),
       'is_host': false,
+      'chips': startingStack,
     });
 
     _selfPlayerId = playerId;
@@ -219,6 +228,27 @@ class SupabaseRoomRepository implements RoomRepository {
     final current = _currentState;
     if (current == null) return;
     unawaited(_writeState(PokerChipEngine.startHand(current), recordHistory: false));
+  }
+
+  @override
+  void updateSettings({
+    int? smallBlind,
+    int? bigBlind,
+    int? ante,
+    int? startingStack,
+  }) {
+    final current = _currentState;
+    if (current == null) return;
+    unawaited(_writeState(
+      PokerChipEngine.updateSettings(
+        current,
+        smallBlind: smallBlind,
+        bigBlind: bigBlind,
+        ante: ante,
+        startingStack: startingStack,
+      ),
+      recordHistory: false,
+    ));
   }
 
   @override

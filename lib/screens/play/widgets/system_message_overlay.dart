@@ -53,6 +53,22 @@ class _SystemMessageOverlayState extends State<SystemMessageOverlay> {
     return IgnorePointer(
       child: AnimatedSwitcher(
         duration: const Duration(milliseconds: 300),
+        switchInCurve: Curves.easeOutBack,
+        switchOutCurve: Curves.easeIn,
+        // 上からふわっと降りてくる + わずかに拡大しながら現れる。
+        transitionBuilder: (child, animation) => FadeTransition(
+          opacity: animation,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, -0.08),
+              end: Offset.zero,
+            ).animate(animation),
+            child: ScaleTransition(
+              scale: Tween<double>(begin: 0.94, end: 1.0).animate(animation),
+              child: child,
+            ),
+          ),
+        ),
         child: message == null
             ? const SizedBox.shrink(key: ValueKey('empty'))
             : Align(

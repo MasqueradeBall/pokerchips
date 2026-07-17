@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../core/theme.dart';
+
 class AvatarCircle extends StatelessWidget {
   const AvatarCircle({
     super.key,
@@ -33,26 +35,43 @@ class AvatarCircle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final initial = name.isEmpty ? '?' : name.substring(0, 1).toUpperCase();
+    final base = isSelf ? AppColors.goldLight : _colorForName(name);
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
       width: size,
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: isSelf ? const Color(0xFFF1C40F) : _colorForName(name),
+        // 左上から光が当たったような立体感のあるグラデーション。
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.lighten(base, 0.18),
+            AppColors.darken(base, 0.25),
+          ],
+        ),
         border: Border.all(
-          color: isCurrentTurn ? const Color(0xFFF1C40F) : Colors.white70,
+          color: isCurrentTurn
+              ? AppColors.goldLight
+              : Colors.white.withValues(alpha: dimmed ? 0.3 : 0.7),
           width: isCurrentTurn ? 3 : 1.5,
         ),
         boxShadow: isCurrentTurn
             ? [
                 BoxShadow(
-                  color: const Color(0xFFF1C40F).withValues(alpha: 0.6),
-                  blurRadius: 10,
+                  color: AppColors.goldLight.withValues(alpha: 0.6),
+                  blurRadius: 12,
                   spreadRadius: 1,
                 ),
               ]
-            : null,
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.35),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
       ),
       alignment: Alignment.center,
       child: Opacity(

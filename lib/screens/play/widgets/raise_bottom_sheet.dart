@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../core/theme.dart';
 
@@ -33,17 +34,32 @@ class _RaiseSheet extends StatefulWidget {
 }
 
 class _RaiseSheetState extends State<_RaiseSheet> {
-  late double _amount;
+  late final TextEditingController _controller;
 
   @override
   void initState() {
     super.initState();
-    _amount = widget.minAmount.toDouble();
+    _controller = TextEditingController(text: widget.minAmount.toString());
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  int? get _amount => int.tryParse(_controller.text);
+
+  bool get _isValid {
+    final amount = _amount;
+    return amount != null && amount >= widget.minAmount && amount <= widget.maxAmount;
   }
 
   void _setPreset(int value) {
+    final clamped = value.clamp(widget.minAmount, widget.maxAmount);
     setState(() {
-      _amount = value.clamp(widget.minAmount, widget.maxAmount).toDouble();
+      _controller.text = clamped.toString();
+      _controller.selection = TextSelection.collapsed(offset: _controller.text.length);
     });
   }
 
@@ -51,7 +67,6 @@ class _RaiseSheetState extends State<_RaiseSheet> {
   Widget build(BuildContext context) {
     final half = (widget.pot / 2).round();
     final full = widget.pot;
-    final sliderEnabled = widget.maxAmount > widget.minAmount;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -64,45 +79,96 @@ class _RaiseSheetState extends State<_RaiseSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('レイズ額', style: Theme.of(context).textTheme.titleMedium),
+          // グラブハンドル: シートであることを直感的に伝える。
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 14),
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          Row(
+            children: [
+              Text('レイズ額', style: Theme.of(context).textTheme.titleMedium),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceDark,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.gold.withValues(alpha: 0.3)),
+                ),
+                child: Text(
+                  'POT \$${widget.pot}',
+                  style: const TextStyle(
+                    color: AppColors.goldLight,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 12),
-          Text(
-            '\$${_amount.round()}',
+          TextField(
+            controller: _controller,
+            // 注意: ここでautofocus:trueにすると、ボトムシートの表示アニメーションと
+            // キーボード出現(MediaQuery変更)が同時に走り、
+            // 「_dependents.isEmpty」assertionでクラッシュすることがあるため使わない。
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             textAlign: TextAlign.center,
             style: const TextStyle(
               fontSize: 32,
               fontWeight: FontWeight.w900,
               color: AppColors.goldLight,
             ),
+            decoration: InputDecoration(
+              prefixText: '\$',
+              helperText: '最小 \$${widget.minAmount} 〜 最大 \$${widget.maxAmount}',
+              errorText: _controller.text.isEmpty || _isValid ? null : '範囲外の金額です',
+            ),
+            onChanged: (_) => setState(() {}),
           ),
-          Slider(
-            value: _amount.clamp(widget.minAmount.toDouble(), widget.maxAmount.toDouble()),
-            min: widget.minAmount.toDouble(),
-            max: widget.maxAmount.toDouble(),
-            activeColor: AppColors.gold,
-            onChanged: sliderEnabled ? (v) => setState(() => _amount = v) : null,
-          ),
+          const SizedBox(height: 12),
           Wrap(
             spacing: 8,
             alignment: WrapAlignment.center,
             children: [
               if (half > widget.minAmount && half < widget.maxAmount)
-                OutlinedButton(onPressed: () => _setPreset(half), child: const Text('1/2 Pot')),
+                _presetChip('1/2 Pot', () => _setPreset(half)),
               if (full > widget.minAmount && full < widget.maxAmount)
-                OutlinedButton(onPressed: () => _setPreset(full), child: const Text('Pot')),
-              OutlinedButton(
-                onPressed: () => _setPreset(widget.maxAmount),
-                child: const Text('ALL IN相当'),
-              ),
+                _presetChip('Pot', () => _setPreset(full)),
+              _presetChip('ALL IN相当', () => _setPreset(widget.maxAmount)),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(_amount.round()),
-            child: const Text('レイズを確定'),
+            onPressed: _isValid ? () => Navigator.of(context).pop(_amount) : null,
+            child: Text(_isValid ? '\$$_amount にレイズ' : 'レイズを確定'),
           ),
         ],
       ),
+    );
+  }
+
+  /// ゴールドのアウトラインで統一したプリセット金額ボタン。
+  Widget _presetChip(String label, VoidCallback onPressed) {
+    return OutlinedButton(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.goldLight,
+        side: BorderSide(color: AppColors.gold.withValues(alpha: 0.5)),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        shape: const StadiumBorder(),
+        textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+      ),
+      onPressed: onPressed,
+      child: Text(label),
     );
   }
 }

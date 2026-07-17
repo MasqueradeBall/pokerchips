@@ -80,7 +80,19 @@ class _WaitingPanelState extends State<WaitingPanel> {
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
-          Text('ハンド終了', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 4),
+          // オールイン演出と同じゴールドの飾り罫でタイトルを飾る。
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _ornamentLine(reversed: false),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: Text('ハンド終了', style: Theme.of(context).textTheme.titleLarge),
+              ),
+              _ornamentLine(reversed: true),
+            ],
+          ),
           const SizedBox(height: 4),
           Text(
             '次のハンドまで待機中です',
@@ -98,7 +110,7 @@ class _WaitingPanelState extends State<WaitingPanel> {
                   watching: _watchingAd,
                   onWatchAd: () => _watchAd(waitingPlayer.id),
                 ),
-                const SizedBox(height: 12),
+                if (waitingPlayer != null) const SizedBox(height: 12),
                 for (final p in players) _PlayerSummaryTile(player: p, isSelf: p.id == self.id),
               ],
             ),
@@ -108,9 +120,9 @@ class _WaitingPanelState extends State<WaitingPanel> {
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () => widget.controller.borrow(self.id),
+                  onPressed: self.chips == 0 ? () => widget.controller.borrow(self.id) : null,
                   icon: const Icon(Icons.attach_money),
-                  label: const Text('+10k 借入する'),
+                  label: Text(self.chips == 0 ? '+10k 借入する' : '手持ちが0の時のみ借入可'),
                 ),
               ),
               const SizedBox(width: 12),
@@ -126,6 +138,23 @@ class _WaitingPanelState extends State<WaitingPanel> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _ornamentLine({required bool reversed}) {
+    return Container(
+      width: 52,
+      height: 1.5,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: reversed ? Alignment.centerRight : Alignment.centerLeft,
+          end: reversed ? Alignment.centerLeft : Alignment.centerRight,
+          colors: [
+            AppColors.gold.withValues(alpha: 0),
+            AppColors.gold.withValues(alpha: 0.8),
+          ],
+        ),
       ),
     );
   }
@@ -148,15 +177,29 @@ class _AdWaitingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 残り10秒を切ったら赤に切り替えて緊急度を伝える。
+    final urgent = remaining.inSeconds <= 10;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.goldLight),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: urgent ? AppColors.chipRed : AppColors.goldLight),
+        boxShadow: [
+          BoxShadow(
+            color: (urgent ? AppColors.chipRed : AppColors.gold).withValues(alpha: 0.2),
+            blurRadius: 18,
+          ),
+        ],
       ),
       child: Column(
         children: [
+          Icon(
+            Icons.favorite_border,
+            color: urgent ? AppColors.chipRed : AppColors.goldLight,
+            size: 22,
+          ),
+          const SizedBox(height: 8),
           Text(
             isSelf
                 ? 'ハートが0になりました。動画広告を視聴して回復してください'
@@ -165,9 +208,14 @@ class _AdWaitingCard extends StatelessWidget {
             style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 6),
-          Text(
-            '※ ${remaining.inSeconds}秒経過で自動キック',
-            style: const TextStyle(color: AppColors.goldLight, fontSize: 11),
+          AnimatedDefaultTextStyle(
+            duration: const Duration(milliseconds: 300),
+            style: TextStyle(
+              color: urgent ? AppColors.chipRed : AppColors.goldLight,
+              fontSize: urgent ? 12 : 11,
+              fontWeight: urgent ? FontWeight.bold : FontWeight.normal,
+            ),
+            child: Text('※ ${remaining.inSeconds}秒経過で自動キック'),
           ),
           if (isSelf) ...[
             const SizedBox(height: 12),
@@ -191,16 +239,59 @@ class _PlayerSummaryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: isSelf
+            ? AppColors.gold.withValues(alpha: 0.08)
+            : AppColors.surfaceCard.withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isSelf
+              ? AppColors.gold.withValues(alpha: 0.4)
+              : Colors.white.withValues(alpha: 0.06),
+        ),
+      ),
       child: Row(
         children: [
           AvatarCircle(name: player.name, size: 32, isSelf: isSelf),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(
-              player.isHost ? '${player.name} (Host)' : player.name,
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+            child: Row(
+              children: [
+                if (player.isHost)
+                  const Padding(
+                    padding: EdgeInsets.only(right: 3),
+                    child: Icon(Icons.star_rounded, size: 13, color: AppColors.goldLight),
+                  ),
+                Flexible(
+                  child: Text(
+                    player.name,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                  ),
+                ),
+                if (player.borrowCount > 0) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.chipRed.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: AppColors.chipRed.withValues(alpha: 0.6)),
+                    ),
+                    child: Text(
+                      '借入 x${player.borrowCount}',
+                      style: const TextStyle(
+                        color: AppColors.chipRed,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
           Row(

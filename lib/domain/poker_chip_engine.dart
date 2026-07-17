@@ -11,6 +11,13 @@ class PokerChipEngine {
   PokerChipEngine._();
 
   /// ハンドを開始する。ハート回復待ち(waitingAd)のプレイヤーがいる間は開始できない。
+  ///
+  /// 実際のポーカーと同じくディーラーボタンを1つずつローテーションし、
+  /// ボタンの次(3人以上)またはボタン自身(2人=ヘッズアップ)からスモール
+  /// ブラインド/ビッグブラインドを強制徴収する。アンティ([Room.ante] > 0)が
+  /// 設定されている場合は全員がブラインドより先にそれも払う。
+  /// プリフロップはBBの次のプレイヤーから、フロップ以降はボタンの次の
+  /// プレイヤーから(=ボタンが最後に行動する)という実際の順序を再現する。
   static GameState startHand(GameState state) {
     if (state.players.any((p) => p.status == PlayerStatus.waitingAd)) {
       throw StateError('ハート回復待ちのプレイヤーがいるためハンドを開始できません');
@@ -20,7 +27,7 @@ class PokerChipEngine {
       throw StateError('プレイヤーが足りません');
     }
 
-    // 2ハンド目以降は開始プレイヤーを1つずつローテーションして公平にする。
+    // 2ハンド目以降はボタンを1つずつローテーションして公平にする。
     final isFirstHand = state.room.turnOrder.isEmpty;
     final eligibleIds = eligible.map((p) => p.id).toList();
     final prevOrder = state.room.turnOrder
@@ -30,7 +37,7 @@ class PokerChipEngine {
         ? eligibleIds
         : [...prevOrder.skip(1), prevOrder.first];
 
-    final newPlayers = state.players.map((p) {
+    var newPlayers = state.players.map((p) {
       if (p.status == PlayerStatus.kicked) return p;
       return p.copyWith(
         currentBet: 0,
@@ -39,18 +46,146 @@ class PokerChipEngine {
       );
     }).toList();
 
+    Player playerById(String id) => newPlayers.firstWhere((p) => p.id == id);
+    void updatePlayer(Player updated) {
+      newPlayers = [
+        for (final p in newPlayers) p.id == updated.id ? updated : p,
+      ];
+    }
+
+    // チップが足りない場合は残りチップ全額をオールインとして徴収する。
+    int postForced(String id, int amount) {
+      if (amount <= 0) return 0;
+      final p = playerById(id);
+      final posted = p.chips < amount ? p.chips : amount;
+      if (posted <= 0) return 0;
+      var updated = p.copyWith(
+        chips: p.chips - posted,
+        currentBet: p.currentBet + posted,
+        handContribution: p.handContribution + posted,
+      );
+      if (updated.chips == 0) {
+        updated = updated.copyWith(status: PlayerStatus.allIn);
+      }
+      updatePlayer(updated);
+      return posted;
+    }
+
+    var pot = 0;
+
+    // アンティ: ブラインドより先に全員から徴収する。
+    // (currentBetには積まない = コール額の計算に影響させない)
+    if (state.room.ante > 0) {
+      for (final id in rotated) {
+        final p = playerById(id);
+        final posted = p.chips < state.room.ante ? p.chips : state.room.ante;
+        if (posted <= 0) continue;
+        var updated = p.copyWith(
+          chips: p.chips - posted,
+          handContribution: p.handContribution + posted,
+        );
+        if (updated.chips == 0) {
+          updated = updated.copyWith(status: PlayerStatus.allIn);
+        }
+        updatePlayer(updated);
+        pot += posted;
+      }
+    }
+
+    // ブラインド: 2人(ヘッズアップ)ではボタン=SB、それ以外はボタンの次がSB。
+    final blindSeats = rotated.length >= 3 ? 3 : rotated.length;
+    final smallBlindId = rotated.length >= 3 ? rotated[1] : rotated[0];
+    final bigBlindId = rotated.length >= 3 ? rotated[2] : rotated[1];
+    final sbPosted = postForced(smallBlindId, state.room.smallBlind);
+    final bbPosted = postForced(bigBlindId, state.room.bigBlind);
+    pot += sbPosted + bbPosted;
+
+    // プリフロップの行動順: BBの次から始まり、ボタン→SB→BBの順で最後に回る
+    // (BBが最後に「オプション」を持つ)。
+    final preflopOrder = [
+      ...rotated.skip(blindSeats),
+      ...rotated.take(blindSeats),
+    ];
+    final pending = preflopOrder
+        .where((id) => playerById(id).status == PlayerStatus.active)
+        .toList();
+
+    final blindText = state.room.bigBlind > 0
+        ? ' (SB \$$sbPosted / BB \$$bbPosted)'
+        : '';
     final room = state.room.copyWith(
       phase: GamePhase.preflop,
-      pot: 0,
-      highestBet: 0,
+      pot: pot,
+      highestBet: bbPosted,
       turnOrder: rotated,
-      pendingToActPlayerIds: rotated,
+      pendingToActPlayerIds: pending,
       clearLastAction: true,
-      systemMessage: '新しいハンドが開始されました',
+      systemMessage: '新しいハンドが開始されました$blindText',
+      clearRevealMessage: true,
       clearAdWaiting: true,
+      // 実際の徴収額(ショートスタックで満額払えなかった場合を含む)に関わらず
+      // 「今回SB/BBの席についているのは誰か」をUI表示用に記録しておく。
+      smallBlindPlayerId: smallBlindId,
+      bigBlindPlayerId: bigBlindId,
     );
 
     return GameState(room: room, players: newPlayers);
+  }
+
+  /// ロビー中([GamePhase.lobby])にのみホストが呼べる設定変更。
+  /// スモール/ビッグブラインド・アンティ・初期チップ枚数を変更できる。
+  /// [startingStack]を変更した場合、まだハンドが始まっていない
+  /// (=誰の資産も動いていない)ロビー中に限られるため、着席済みの
+  /// 全プレイヤーのチップ枚数もその場で新しい値に揃え直す。
+  static GameState updateSettings(
+    GameState state, {
+    int? smallBlind,
+    int? bigBlind,
+    int? ante,
+    int? startingStack,
+  }) {
+    if (state.room.phase != GamePhase.lobby) {
+      throw StateError('ゲーム開始前(ロビー)のみ設定を変更できます');
+    }
+    final nextSmallBlind = smallBlind ?? state.room.smallBlind;
+    final nextBigBlind = bigBlind ?? state.room.bigBlind;
+    final nextAnte = ante ?? state.room.ante;
+    final nextStartingStack = startingStack ?? state.room.startingStack;
+
+    if (nextSmallBlind < 0 || nextSmallBlind > GameConstants.maxBlindAmount) {
+      throw ArgumentError('スモールブラインドが不正です');
+    }
+    if (nextBigBlind < 0 || nextBigBlind > GameConstants.maxBlindAmount) {
+      throw ArgumentError('ビッグブラインドが不正です');
+    }
+    if (nextBigBlind < nextSmallBlind) {
+      throw ArgumentError('ビッグブラインドはスモールブラインド以上にしてください');
+    }
+    if (nextAnte < 0 || nextAnte > GameConstants.maxAnteAmount) {
+      throw ArgumentError('アンティが不正です');
+    }
+    if (nextStartingStack < GameConstants.minStartingStack ||
+        nextStartingStack > GameConstants.maxStartingStack) {
+      throw ArgumentError('初期チップ枚数が不正です');
+    }
+
+    final stackChanged =
+        startingStack != null && startingStack != state.room.startingStack;
+    final players = stackChanged
+        ? state.players
+            .map((p) => p.status == PlayerStatus.kicked
+                ? p
+                : p.copyWith(chips: nextStartingStack))
+            .toList()
+        : state.players;
+
+    final room = state.room.copyWith(
+      smallBlind: nextSmallBlind,
+      bigBlind: nextBigBlind,
+      ante: nextAnte,
+      startingStack: nextStartingStack,
+    );
+    return GameState(room: room, players: players);
   }
 
   /// fold / check / call / raise / allIn のいずれかを適用する。
@@ -138,7 +273,13 @@ class PokerChipEngine {
       actionType: action,
       displayText: actionText,
     );
-    room = room.copyWith(pendingToActPlayerIds: pending, lastAction: log);
+    // このストリートで既に誰かがアクションした = カードは既にめくられている前提なので、
+    // めくり案内は消してよい。
+    room = room.copyWith(
+      pendingToActPlayerIds: pending,
+      lastAction: log,
+      clearRevealMessage: true,
+    );
 
     return _afterAction(GameState(room: room, players: players));
   }
@@ -161,6 +302,9 @@ class PokerChipEngine {
   static GameState borrow(GameState state, String playerId) {
     if (state.room.phase != GamePhase.interHand) {
       throw StateError('借金はハンド間の待機中のみ可能です');
+    }
+    if (state.playerById(playerId).chips != 0) {
+      throw StateError('手持ちチップが0の場合のみ借入できます');
     }
     final players = state.players.map((p) {
       if (p.id != playerId) return p;
@@ -258,16 +402,50 @@ class PokerChipEngine {
     return _advanceStreet(state, inHand);
   }
 
-  static GameState _advanceStreet(GameState state, List<Player> inHand) {
+  /// [from]の次から[through]までの各ストリートの「めくる案内」ラベルを順番に返す。
+  /// 全員all-in等で複数ストリートを一気に自動進行する場合でも、
+  /// 案内メッセージが上書きされて消えないよう、呼び出し側でこれをまとめて使う。
+  static List<String> _revealLabelsBetween(GamePhase from, GamePhase through) {
+    const order = [GamePhase.preflop, GamePhase.flop, GamePhase.turn, GamePhase.river];
+    final fromIndex = order.indexOf(from);
+    final throughIndex = order.indexOf(through);
+    return [
+      for (var i = fromIndex + 1; i <= throughIndex; i++) _revealLabel(order[i]),
+    ];
+  }
+
+  static String _revealLabel(GamePhase phase) {
+    switch (phase) {
+      case GamePhase.flop:
+        return 'フロップ(3枚)';
+      case GamePhase.turn:
+        return 'ターン(1枚)';
+      case GamePhase.river:
+        return 'リバー(1枚)';
+      case GamePhase.preflop:
+      case GamePhase.showdown:
+      case GamePhase.lobby:
+      case GamePhase.interHand:
+        return '';
+    }
+  }
+
+  static GameState _advanceStreet(GameState state, List<Player> inHand, {GamePhase? fromPhase}) {
+    // 再帰で複数ストリートを飛ばして進む場合も、最初の呼び出し時点のフェーズを
+    // 覚えておくことで、飛ばした分すべてのめくり案内をまとめて提示できる。
+    final startPhase = fromPhase ?? state.room.phase;
     var room = state.room;
     var players = state.players;
     final activeDeciders = inHand.where((p) => p.status == PlayerStatus.active).toList();
 
     if (room.phase == GamePhase.river || activeDeciders.length <= 1) {
+      final revealed = _revealLabelsBetween(startPhase, GamePhase.river);
       room = room.copyWith(
         phase: GamePhase.showdown,
         systemMessage: 'ショーダウン: 勝者を選択してください',
         pendingToActPlayerIds: const [],
+        revealMessage: revealed.isEmpty ? null : '${revealed.join('→')}をめくってください',
+        clearRevealMessage: revealed.isEmpty,
       );
       return GameState(room: room, players: players);
     }
@@ -277,22 +455,28 @@ class PokerChipEngine {
       if (!p.isInHand) return p;
       return p.copyWith(currentBet: 0);
     }).toList();
-    final pending = room.turnOrder
+    // フロップ以降はボタンの次のプレイヤーから行動が始まり、ボタンが最後になる
+    // (プリフロップだけはBBの次から始まるので[startHand]で別途決めている)。
+    final postflopOrder = room.turnOrder.length > 1
+        ? [...room.turnOrder.skip(1), room.turnOrder.first]
+        : room.turnOrder;
+    final pending = postflopOrder
         .where((id) => players.firstWhere((p) => p.id == id).status == PlayerStatus.active)
         .toList();
 
+    final revealed = _revealLabelsBetween(startPhase, nextPhase);
     room = room.copyWith(
       phase: nextPhase,
       highestBet: 0,
       pendingToActPlayerIds: pending,
       clearLastAction: true,
-      systemMessage: 'カードをめくってください',
+      revealMessage: '${revealed.join('→')}をめくってください',
     );
 
     final nextState = GameState(room: room, players: players);
     if (pending.isEmpty) {
       // 全員allIn等でこれ以上ベットできない場合は次のストリートへ自動進行
-      return _advanceStreet(nextState, inHand);
+      return _advanceStreet(nextState, inHand, fromPhase: startPhase);
     }
     return nextState;
   }
@@ -321,6 +505,8 @@ class PokerChipEngine {
       pendingToActPlayerIds: const [],
       adWaitingPlayerId: adWaitingPlayerId,
       adWaitingDeadline: adWaitingDeadline,
+      clearRevealMessage: true,
+      clearBlindPlayers: true,
     );
     return GameState(room: room, players: players);
   }

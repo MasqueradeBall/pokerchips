@@ -31,7 +31,13 @@ class AnimatedChipCounter extends StatelessWidget {
       duration: const Duration(milliseconds: 500),
       curve: Curves.easeOutCubic,
       builder: (context, val, _) {
-        return Text('$prefix${_format(val.round())}', style: style);
+        return Text(
+          '$prefix${_format(val.round())}',
+          style: style,
+          maxLines: 1,
+          softWrap: false,
+          overflow: TextOverflow.visible,
+        );
       },
     );
   }

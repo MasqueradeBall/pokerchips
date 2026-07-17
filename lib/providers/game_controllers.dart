@@ -59,6 +59,20 @@ class GameController {
 
   void startNextHand() => _repository.startNextHand();
 
+  /// ブラインド/アンティ/初期チップ枚数を変更する(ロビー中のホストのみ想定)。
+  void updateSettings({
+    int? smallBlind,
+    int? bigBlind,
+    int? ante,
+    int? startingStack,
+  }) =>
+      _repository.updateSettings(
+        smallBlind: smallBlind,
+        bigBlind: bigBlind,
+        ante: ante,
+        startingStack: startingStack,
+      );
+
   void awardPot(List<String> winnerIds) => _repository.awardPot(winnerIds);
 
   void resolveAdWatched(String playerId) => _repository.resolveAdWatched(playerId);

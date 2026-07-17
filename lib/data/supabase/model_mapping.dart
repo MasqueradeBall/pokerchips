@@ -1,3 +1,4 @@
+import '../../core/constants.dart';
 import '../../domain/game_state.dart';
 import '../../models/action_log.dart';
 import '../../models/enums.dart';
@@ -66,10 +67,18 @@ Room roomFromRow(Map<String, dynamic> row) {
         ? null
         : actionLogFromJson(row['last_action'] as Map<String, dynamic>),
     systemMessage: row['system_message'] as String?,
+    revealMessage: row['reveal_message'] as String?,
     adWaitingPlayerId: row['ad_waiting_player_id'] as String?,
     adWaitingDeadline: row['ad_waiting_deadline'] == null
         ? null
         : DateTime.parse(row['ad_waiting_deadline'] as String).toLocal(),
+    // as int? ?? デフォルト値: マイグレーション前の古いroom行にも耐えるようにする。
+    smallBlind: row['small_blind'] as int? ?? 0,
+    bigBlind: row['big_blind'] as int? ?? 0,
+    ante: row['ante'] as int? ?? 0,
+    startingStack: row['starting_stack'] as int? ?? GameConstants.initialStack,
+    smallBlindPlayerId: row['small_blind_player_id'] as String?,
+    bigBlindPlayerId: row['big_blind_player_id'] as String?,
   );
 }
 
@@ -84,8 +93,15 @@ Map<String, dynamic> roomToRow(Room room) => {
       'pending_to_act': room.pendingToActPlayerIds,
       'last_action': room.lastAction == null ? null : actionLogToJson(room.lastAction!),
       'system_message': room.systemMessage,
+      'reveal_message': room.revealMessage,
       'ad_waiting_player_id': room.adWaitingPlayerId,
       'ad_waiting_deadline': room.adWaitingDeadline?.toUtc().toIso8601String(),
+      'small_blind': room.smallBlind,
+      'big_blind': room.bigBlind,
+      'ante': room.ante,
+      'starting_stack': room.startingStack,
+      'small_blind_player_id': room.smallBlindPlayerId,
+      'big_blind_player_id': room.bigBlindPlayerId,
     };
 
 /// Undo用にGameState全体をJSONへ変換する。
