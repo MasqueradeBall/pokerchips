@@ -17,8 +17,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   final _nameController = TextEditingController();
   final _joinCodeController = TextEditingController();
   final _secretWordController = TextEditingController();
-  int _playerCount = 4;
-  bool _creating = false;
+  bool _busy = false;
 
   @override
   void dispose() {
@@ -28,34 +27,47 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     super.dispose();
   }
 
-  Future<void> _createRoom() async {
-    if (_creating) return;
-    setState(() => _creating = true);
+  String get _playerName =>
+      _nameController.text.trim().isEmpty ? 'あなた' : _nameController.text.trim();
+
+  Future<void> _run(Future<String> Function(GameController controller) action) async {
+    if (_busy) return;
+    setState(() => _busy = true);
     final controller = ref.read(gameControllerProvider);
-    final name = _nameController.text.trim().isEmpty ? 'あなた' : _nameController.text.trim();
     try {
-      final hostId = await controller.createRoom(
-        hostName: name,
-        totalPlayers: _playerCount,
-      );
+      final selfId = await action(controller);
       final secretWord = _secretWordController.text.trim();
       if (secretWord.isNotEmpty) {
-        controller.applySecretWord(hostId, secretWord);
+        controller.applySecretWord(selfId, secretWord);
       }
       if (!mounted) return;
       await Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => const PlayScreen()),
       );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$e')),
+      );
     } finally {
-      if (mounted) setState(() => _creating = false);
+      if (mounted) setState(() => _busy = false);
     }
   }
 
-  void _showOnlineComingSoon() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('オンライン対戦はSupabase接続後に利用可能になります(現在はデモ/Bot対戦モードです)'),
-      ),
+  Future<void> _createRoom() {
+    return _run((controller) => controller.createRoom(hostName: _playerName));
+  }
+
+  Future<void> _joinRoom() {
+    final code = _joinCodeController.text.trim();
+    if (code.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ルームIDを入力してください')),
+      );
+      return Future.value();
+    }
+    return _run(
+      (controller) => controller.joinRoom(playerName: _playerName, roomCode: code),
     );
   }
 
@@ -90,7 +102,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
                 const SizedBox(height: 40),
                 _SectionCard(
-                  title: 'ルームを作成',
+                  title: 'プレイヤー情報',
                   children: [
                     TextField(
                       controller: _nameController,
@@ -100,26 +112,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    Text('人数(自分+Bot): $_playerCount人', style: textTheme.bodyMedium),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      children: [
-                        for (var n = 2; n <= 6; n++)
-                          ChoiceChip(
-                            label: Text('$n'),
-                            selected: _playerCount == n,
-                            onSelected: (_) => setState(() => _playerCount = n),
-                            selectedColor: AppColors.gold,
-                            labelStyle: TextStyle(
-                              color: _playerCount == n ? Colors.black : Colors.white70,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            backgroundColor: AppColors.surfaceDark,
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
                     TextField(
                       controller: _secretWordController,
                       decoration: const InputDecoration(
@@ -127,16 +119,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         hintText: '正しく入力すると広告が非表示になります',
                       ),
                     ),
-                    const SizedBox(height: 20),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                _SectionCard(
+                  title: 'ルームを作成',
+                  children: [
+                    Text(
+                      '新しいルームを作り、表示されるルームIDを他のプレイヤーに共有してください。',
+                      style: textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 16),
                     ElevatedButton(
-                      onPressed: _creating ? null : _createRoom,
-                      child: _creating
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
-                            )
-                          : const Text('ルームを作成(Bot対戦デモ)'),
+                      onPressed: _busy ? null : _createRoom,
+                      child: _busyIndicatorOr('ルームを作成'),
                     ),
                   ],
                 ),
@@ -165,8 +161,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                     const SizedBox(height: 16),
                     OutlinedButton(
-                      onPressed: _showOnlineComingSoon,
-                      child: const Text('参加する'),
+                      onPressed: _busy ? null : _joinRoom,
+                      child: _busyIndicatorOr('参加する'),
                     ),
                   ],
                 ),
@@ -175,6 +171,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _busyIndicatorOr(String label) {
+    if (!_busy) return Text(label);
+    return const SizedBox(
+      height: 20,
+      width: 20,
+      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
     );
   }
 }

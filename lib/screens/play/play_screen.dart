@@ -73,7 +73,14 @@ class _PlayContent extends StatelessWidget {
       children: [
         _HeaderBar(self: self, roomCode: room.code),
         Expanded(
-          child: room.phase == GamePhase.interHand
+          child: room.phase == GamePhase.lobby
+              ? _LobbyPanel(
+                  room: room,
+                  players: players,
+                  isHostViewer: isHostViewer,
+                  controller: controller,
+                )
+              : room.phase == GamePhase.interHand
               ? WaitingPanel(
                   state: state,
                   selfPlayerId: snapshot.selfPlayerId,
@@ -172,6 +179,102 @@ class _HeaderBar extends StatelessWidget {
             'Room: $roomCode',
             style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// ハンド開始前のロビー画面。ルームIDを共有し、参加者が揃うのを待つ。
+class _LobbyPanel extends StatelessWidget {
+  const _LobbyPanel({
+    required this.room,
+    required this.players,
+    required this.isHostViewer,
+    required this.controller,
+  });
+
+  final Room room;
+  final List<Player> players;
+  final bool isHostViewer;
+  final GameController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final canStart = players.length >= 2;
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: 12),
+          const Text(
+            'ルームID',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white54, letterSpacing: 2, fontSize: 12),
+          ),
+          Text(
+            room.code,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: AppColors.goldLight,
+              fontSize: 48,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 4,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'このIDを他のプレイヤーに共有してください',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white54, fontSize: 12),
+          ),
+          const SizedBox(height: 32),
+          Text(
+            '参加者 (${players.length}人)',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: ListView.separated(
+              itemCount: players.length,
+              separatorBuilder: (context, _) => const SizedBox(height: 8),
+              itemBuilder: (context, index) {
+                final p = players[index];
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceCard,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          p.name,
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      if (p.isHost)
+                        const Text('HOST', style: TextStyle(color: AppColors.goldLight, fontSize: 11, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (isHostViewer)
+            ElevatedButton(
+              onPressed: canStart ? controller.startNextHand : null,
+              child: Text(canStart ? 'ゲームを開始' : '2人以上集まると開始できます'),
+            )
+          else
+            const Text(
+              'ホストの開始を待っています…',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white70),
+            ),
         ],
       ),
     );

@@ -3,17 +3,19 @@ import 'room_snapshot.dart';
 
 /// ルーム/ゲーム進行を扱う抽象interface。
 ///
-/// 現在は [LocalRoomRepository](local/local_room_repository.dart) のみが実装されており、
-/// 1台のデバイスでホスト+Bot対戦するデモ/オフラインモードとして動作する。
-/// 将来Supabase Realtimeで本当のオンライン対戦に対応する際は、この interface を
-/// 実装する `SupabaseRoomRepository` を追加し、Riverpodのprovider定義を差し替えるだけで良い。
+/// [SupabaseRoomRepository](supabase/supabase_room_repository.dart) が本番の
+/// オンライン対戦実装。[LocalRoomRepository](local/local_room_repository.dart) は
+/// 1台のデバイスでホスト+Botと対戦するオフラインデモ実装で、コードは残しているが
+/// 現在Home画面からは直接使用していない。
 abstract class RoomRepository {
   /// 現在のゲーム状態を配信するStream。
   Stream<RoomSnapshot> watch();
 
-  /// ルームを作成し、host + bot(totalPlayers-1体)でハンドを開始する。
-  /// 戻り値は自分自身(ホスト)のplayerId。
-  Future<String> createRoom({required String hostName, required int totalPlayers});
+  /// ルームを作成する。戻り値は自分自身(ホスト)のplayerId。
+  Future<String> createRoom({required String hostName});
+
+  /// ルームIDを指定して既存のルームに参加する。戻り値は自分自身のplayerId。
+  Future<String> joinRoom({required String playerName, required String roomCode});
 
   /// fold/check/call/raise/allIn を送信する。
   void performAction(String playerId, ActionType action, {int amount = 0});

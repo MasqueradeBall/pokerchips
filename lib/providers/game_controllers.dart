@@ -12,8 +12,12 @@ class GameController {
 
   final RoomRepository _repository;
 
-  Future<String> createRoom({required String hostName, required int totalPlayers}) {
-    return _repository.createRoom(hostName: hostName, totalPlayers: totalPlayers);
+  Future<String> createRoom({required String hostName}) {
+    return _repository.createRoom(hostName: hostName);
+  }
+
+  Future<String> joinRoom({required String playerName, required String roomCode}) {
+    return _repository.joinRoom(playerName: playerName, roomCode: roomCode);
   }
 
   void fold(String playerId) {

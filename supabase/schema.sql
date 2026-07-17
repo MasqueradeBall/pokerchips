@@ -1,12 +1,22 @@
--- ポーカーチップアプリ: Supabaseスキーマ(次フェーズでオンライン対戦を実装する際に使用)
+-- ポーカーチップアプリ: Supabaseスキーマ(オンライン対戦用)
 --
--- 現在のアプリはこのスキーマを使用していない(ローカルモック版のみ)。
--- Supabaseプロジェクトを作成したら、SQL Editorでこのファイルをそのまま実行することを想定している。
+-- Supabaseプロジェクトを作成したら、SQL Editorでこのファイルをそのまま実行する。
+-- 既存環境に対して再実行しても安全なように書いてある(テーブルはIF NOT EXISTS、
+-- ポリシー/関数はDROP→CREATE)。
 --
 -- 認証は Supabase Anonymous Sign-in (auth.signInAnonymously()) を使う前提。
+-- ダッシュボードの Authentication > Sign In / Providers で
+-- "Allow anonymous sign-ins" を有効にしておくこと(デフォルトは無効)。
+--
 -- 各クライアントのauth.uid()をplayers.user_idに紐づけ、RLSで
 -- 「自分のplayer行だけ更新できる」「自分が参加しているroomのデータだけ見える」を保証する。
--- これはあくまで最初のたたき台であり、本番投入前に必ずセキュリティレビューを行うこと。
+--
+-- ゲーム進行ロジック(PokerChipEngine)はクライアント側で計算し、その結果をこのDBに
+-- 書き込む「クライアント主導」方式。サーバー側で不正なアクションを検証するPostgres
+-- 関数は用意していないため、悪意のあるクライアントによる不正な書き込みは
+-- 現状のRLSだけでは防げない(友人内でのプレイを想定した簡易実装)。
+-- version列は同時書き込みの検知(楽観的ロック)用に用意しているが、
+-- 現在のクライアント実装では検証まではしていない(last-write-wins)。
 
 create extension if not exists "pgcrypto";
 
@@ -14,15 +24,19 @@ create table if not exists rooms (
   id uuid primary key default gen_random_uuid(),
   room_code text unique not null,
   host_player_id uuid,
+  phase text not null default 'lobby',
   pot integer not null default 0,
   highest_bet integer not null default 0,
-  current_phase text not null default 'lobby',
   turn_order uuid[] not null default '{}',
   pending_to_act uuid[] not null default '{}',
   last_action jsonb,
   system_message text,
   ad_waiting_player_id uuid,
   ad_waiting_deadline timestamptz,
+  -- Undo(直前の1手のみ取り消し)用に、直前アクション前のroom+players全体の
+  -- スナップショットを保持する。undo実行時にこれを丸ごと書き戻す。
+  previous_snapshot jsonb,
+  version integer not null default 0,
   created_at timestamptz not null default now()
 );
 
@@ -39,11 +53,12 @@ create table if not exists players (
   borrow_count integer not null default 0,
   status text not null default 'active',
   is_host boolean not null default false,
-  is_bot boolean not null default false,
+  version integer not null default 0,
   created_at timestamptz not null default now()
 );
 
--- Undo機能(直近1手のみ取り消し)を実現するための行動履歴。
+-- 監査用の行動履歴(Undoの実現には previous_snapshot を使うため、
+-- こちらは「誰が何をしたか」の記録用途のみ)。
 create table if not exists action_logs (
   id uuid primary key default gen_random_uuid(),
   room_id uuid not null references rooms(id) on delete cascade,
@@ -57,74 +72,82 @@ alter table rooms enable row level security;
 alter table players enable row level security;
 alter table action_logs enable row level security;
 
--- 自分が参加しているroomだけ参照可能
-create policy "rooms_select_member" on rooms for select
-  using (
-    exists (
-      select 1 from players
-      where players.room_id = rooms.id
-        and players.user_id = auth.uid()
-    )
+-- 「自分がそのroomのplayerかどうか」を判定するヘルパー関数。
+-- SECURITY DEFINERでRLSをバイパスして評価することで、
+-- players テーブル自身のRLSポリシーからplayersを参照した際の
+-- 無限再帰(infinite recursion detected in policy)を回避する。
+create or replace function is_room_member(target_room_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from players
+    where players.room_id = target_room_id
+      and players.user_id = auth.uid()
   );
+$$;
+
+drop policy if exists "rooms_select_member" on rooms;
+drop policy if exists "rooms_select_authenticated" on rooms;
+drop policy if exists "rooms_insert_any" on rooms;
+drop policy if exists "rooms_update_member" on rooms;
+drop policy if exists "players_select_roommate" on players;
+drop policy if exists "players_insert_self" on players;
+drop policy if exists "players_update_self_or_host" on players;
+drop policy if exists "players_update_roommate" on players;
+drop policy if exists "action_logs_select_roommate" on action_logs;
+drop policy if exists "action_logs_insert_roommate" on action_logs;
+
+-- ルームコードでの参加(join)にはコード検索が必要なため、
+-- サインイン済み(匿名可)であればroomsは閲覧可能にする。
+-- コードは友人内共有前提の簡易セキュリティであり、厳密なメンバー制限ではない。
+create policy "rooms_select_authenticated" on rooms for select
+  using (auth.uid() is not null);
 
 -- ルーム作成は誰でも可能(作成時点ではまだplayer行が無いため)
 create policy "rooms_insert_any" on rooms for insert
   with check (true);
 
 create policy "rooms_update_member" on rooms for update
-  using (
-    exists (
-      select 1 from players
-      where players.room_id = rooms.id
-        and players.user_id = auth.uid()
-    )
-  );
+  using (is_room_member(rooms.id));
 
 create policy "players_select_roommate" on players for select
-  using (
-    exists (
-      select 1 from players self
-      where self.room_id = players.room_id
-        and self.user_id = auth.uid()
-    )
-  );
+  using (is_room_member(players.room_id));
 
 create policy "players_insert_self" on players for insert
   with check (user_id = auth.uid());
 
--- 自分の行、またはホスト(キック/借金付与など)が更新可能。
--- ホスト権限の正確な検証はアプリ側のRPC関数で行うことを推奨。
-create policy "players_update_self_or_host" on players for update
-  using (
-    user_id = auth.uid()
-    or exists (
-      select 1 from rooms
-      where rooms.id = players.room_id
-        and rooms.host_player_id = (
-          select id from players p2 where p2.room_id = players.room_id and p2.user_id = auth.uid()
-        )
-    )
-  );
+-- クライアント主導方式(PokerChipEngineの計算結果をそのまま書き込む)のため、
+-- 「フォールドで他プレイヤーが勝つ」「ストリート進行で全員のcurrent_betがリセットされる」
+-- 等、自分以外の行も書き込む場面がある。そのため同じルームのメンバーであれば
+-- 誰でも(host以外も)room内の他プレイヤー行を更新できるようにしている。
+create policy "players_update_roommate" on players for update
+  using (is_room_member(players.room_id));
 
 create policy "action_logs_select_roommate" on action_logs for select
-  using (
-    exists (
-      select 1 from players
-      where players.room_id = action_logs.room_id
-        and players.user_id = auth.uid()
-    )
-  );
+  using (is_room_member(action_logs.room_id));
 
 create policy "action_logs_insert_roommate" on action_logs for insert
-  with check (
-    exists (
-      select 1 from players
-      where players.room_id = action_logs.room_id
-        and players.user_id = auth.uid()
-    )
-  );
+  with check (is_room_member(action_logs.room_id));
 
--- Realtimeで変更を配信できるようにする
-alter publication supabase_realtime add table rooms;
-alter publication supabase_realtime add table players;
-alter publication supabase_realtime add table action_logs;
+-- Realtimeで変更を配信できるようにする(既に追加済みならエラーになるため例外を握りつぶす)
+do $$
+begin
+  alter publication supabase_realtime add table rooms;
+exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter publication supabase_realtime add table players;
+exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter publication supabase_realtime add table action_logs;
+exception when duplicate_object then null;
+end $$;

@@ -43,7 +43,7 @@ class LocalRoomRepository implements RoomRepository {
   }
 
   @override
-  Future<String> createRoom({required String hostName, required int totalPlayers}) async {
+  Future<String> createRoom({required String hostName, int totalPlayers = 4}) async {
     final hostId = _uuid.v4();
     _selfPlayerId = hostId;
 
@@ -68,6 +68,11 @@ class LocalRoomRepository implements RoomRepository {
     _setState(GameState(room: room, players: players), recordHistory: false);
     startNextHand();
     return hostId;
+  }
+
+  @override
+  Future<String> joinRoom({required String playerName, required String roomCode}) {
+    throw UnimplementedError('オフラインBot対戦モードではルーム参加はサポートされていません');
   }
 
   @override
