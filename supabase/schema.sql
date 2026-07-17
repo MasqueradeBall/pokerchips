@@ -57,6 +57,26 @@ create table if not exists players (
   created_at timestamptz not null default now()
 );
 
+-- 以前の下書き版schema.sql(current_phase列など)を既に実行済みの環境向けの
+-- 移行措置。CREATE TABLE IF NOT EXISTSは既存テーブルの列を追加/変更しないため、
+-- 古い列名が残っている場合はここでリネーム・追加する。
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_name = 'rooms' and column_name = 'current_phase'
+  ) and not exists (
+    select 1 from information_schema.columns
+    where table_name = 'rooms' and column_name = 'phase'
+  ) then
+    alter table rooms rename column current_phase to phase;
+  end if;
+end $$;
+
+alter table rooms add column if not exists previous_snapshot jsonb;
+alter table rooms add column if not exists version integer not null default 0;
+alter table players add column if not exists version integer not null default 0;
+
 -- 監査用の行動履歴(Undoの実現には previous_snapshot を使うため、
 -- こちらは「誰が何をしたか」の記録用途のみ)。
 create table if not exists action_logs (
