@@ -81,10 +81,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 
   /// Botと1人で対戦できるオフラインデモを開始する(本番では非表示)。
-  // Future<void> _startDemo() {
-  //   ref.read(demoModeProvider.notifier).state = true;
-  //   return _run((controller) => controller.createRoom(hostName: _playerName));
-  // }
+  Future<void> _startDemo() {
+    ref.read(demoModeProvider.notifier).state = true;
+    return _run((controller) => controller.createRoom(hostName: _playerName));
+  }
 
   /// [start]〜[start+0.45]の区間でフェード+スライドインさせるラッパー。
   Widget _reveal(double start, Widget child) {
@@ -179,15 +179,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   ],
                 )),
                 const SizedBox(height: 12),
-                // デモモードボタン(本番では非表示)
-                // _reveal(0.62, Center(
-                //   child: TextButton.icon(
-                //     onPressed: _busy ? null : _startDemo,
-                //     icon: const Icon(Icons.smart_toy_outlined, size: 18),
-                //     label: const Text('Botと1人で試す(デモ)'),
-                //     style: TextButton.styleFrom(foregroundColor: Colors.white54),
-                //   ),
-                // )),
+                // デモモードボタン(スクリーンショット撮影等のため一時的に表示中)
+                _reveal(0.62, Center(
+                  child: TextButton.icon(
+                    onPressed: _busy ? null : _startDemo,
+                    icon: const Icon(Icons.smart_toy_outlined, size: 18),
+                    label: const Text('Botと1人で試す(デモ)'),
+                    style: TextButton.styleFrom(foregroundColor: Colors.white54),
+                  ),
+                )),
               ],
             ),
           ),

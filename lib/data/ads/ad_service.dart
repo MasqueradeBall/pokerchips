@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
+import 'package:app_tracking_transparency/app_tracking_transparency.dart';
+
 /// 動画リワード広告(ハート回復)をラップするサービス。
 /// 現在はGoogle公式のテスト広告ユニットIDを使用している。
 /// 本番運用時は [_rewardedAdUnitId] をAdMobで取得した本番IDに差し替えること。
@@ -11,7 +13,21 @@ class AdService {
 
   static final AdService instance = AdService._();
 
-  static Future<void> initialize() => MobileAds.instance.initialize();
+  static Future<void> initialize() async {
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      try {
+        final status = await AppTrackingTransparency.trackingAuthorizationStatus;
+        if (status == TrackingStatus.notDetermined) {
+          // ATTのダイアログが正しく表示されるよう、UI描画後に少し待つ
+          await Future.delayed(const Duration(milliseconds: 500));
+          await AppTrackingTransparency.requestTrackingAuthorization();
+        }
+      } catch (e) {
+        debugPrint('ATT Request Error: $e');
+      }
+    }
+    await MobileAds.instance.initialize();
+  }
 
   static String get _rewardedAdUnitId {
     switch (defaultTargetPlatform) {

@@ -10,16 +10,25 @@ import 'data/ads/ad_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Supabaseの初期化(ローカルキャッシュからのセッション復元など)はawaitする
   await Supabase.initialize(
     url: SupabaseConfig.url,
     publishableKey: SupabaseConfig.anonKey,
   );
-  if (Supabase.instance.client.auth.currentSession == null) {
-    await Supabase.instance.client.auth.signInAnonymously();
-  }
+
   runApp(const ProviderScope(child: PokerChipsApp()));
 
-  // 広告SDKの初期化は数秒かかることがあり、初回描画をブロックしないよう
-  // runApp後にバックグラウンドで行う(ハートが尽きるまで広告は使われない)。
+  // 匿名ログインや広告SDKの初期化など、ネットワーク通信を伴う処理は
+  // 初回描画(runApp)をブロックしないようにバックグラウンドで行う。
+  unawaited(() async {
+    if (Supabase.instance.client.auth.currentSession == null) {
+      try {
+        await Supabase.instance.client.auth.signInAnonymously();
+      } catch (e) {
+        debugPrint('匿名ログイン失敗: $e');
+      }
+    }
+  }());
+
   unawaited(AdService.initialize().then((_) => AdService.instance.preload()));
 }
