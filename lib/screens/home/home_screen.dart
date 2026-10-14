@@ -38,8 +38,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     super.dispose();
   }
 
-  String get _playerName =>
-      _nameController.text.trim().isEmpty ? 'あなた' : _nameController.text.trim();
+  /// 未入力の場合は空文字のまま渡し、リポジトリ側で「プレイヤーN」を割り当てる。
+  String get _playerName => _nameController.text.trim();
 
   Future<void> _run(Future<String> Function(GameController controller) action) async {
     if (_busy) return;
@@ -125,7 +125,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       controller: _nameController,
                       decoration: const InputDecoration(
                         labelText: 'プレイヤー名',
-                        hintText: 'あなたの名前',
+                        hintText: 'あなたの名前(未入力なら自動で命名)',
                       ),
                     ),
                   ],

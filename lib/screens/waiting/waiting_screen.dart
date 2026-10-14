@@ -8,6 +8,7 @@ import '../../domain/game_state.dart';
 import '../../models/player.dart';
 import '../../providers/game_controllers.dart';
 import '../../widgets/avatar_circle.dart';
+import '../play/widgets/kick_dialog.dart';
 
 /// ハンド終了後の待機画面(画面3): ハート回復広告待ち + 借金 + 次のハンド開始。
 class WaitingPanel extends StatefulWidget {
@@ -111,7 +112,18 @@ class _WaitingPanelState extends State<WaitingPanel> {
                   onWatchAd: () => _watchAd(waitingPlayer.id),
                 ),
                 if (waitingPlayer != null) const SizedBox(height: 12),
-                for (final p in players) _PlayerSummaryTile(player: p, isSelf: p.id == self.id),
+                for (final p in players)
+                  _PlayerSummaryTile(
+                    player: p,
+                    isSelf: p.id == self.id,
+                    onKick: isHost && p.id != self.id
+                        ? () => showKickConfirmDialog(
+                              context,
+                              controller: widget.controller,
+                              player: p,
+                            )
+                        : null,
+                  ),
               ],
             ),
           ),
@@ -232,10 +244,13 @@ class _AdWaitingCard extends StatelessWidget {
 }
 
 class _PlayerSummaryTile extends StatelessWidget {
-  const _PlayerSummaryTile({required this.player, required this.isSelf});
+  const _PlayerSummaryTile({required this.player, required this.isSelf, this.onKick});
 
   final Player player;
   final bool isSelf;
+
+  /// ホストが他プレイヤーを見ている場合のみ非null。キックボタンを表示する。
+  final VoidCallback? onKick;
 
   @override
   Widget build(BuildContext context) {
@@ -312,6 +327,10 @@ class _PlayerSummaryTile extends StatelessWidget {
               fontWeight: FontWeight.bold,
             ),
           ),
+          if (onKick != null) ...[
+            const SizedBox(width: 4),
+            KickIconButton(onPressed: onKick!),
+          ],
         ],
       ),
     );

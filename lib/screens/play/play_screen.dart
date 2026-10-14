@@ -21,6 +21,7 @@ import 'widgets/allin_effect.dart';
 import 'widgets/bet_chip_stack.dart';
 import 'widgets/card_reveal_overlay.dart';
 import 'widgets/casino_table_surface.dart';
+import 'widgets/kick_dialog.dart';
 import 'widgets/lobby_settings_sheet.dart';
 import 'widgets/player_badge.dart';
 import 'widgets/pot_display.dart';
@@ -184,6 +185,24 @@ class _PlayContentState extends State<_PlayContent> {
     });
   }
 
+  /// キックされたことを検知してホームへ戻す処理を一度だけ行うためのフラグ。
+  bool _kickHandled = false;
+
+  /// ホストにキックされた端末をホーム画面へ戻す。自分で退出した場合は
+  /// 既に画面を閉じている(ルートが最前面でない)ので何もしない。
+  void _exitIfKicked(Player self) {
+    if (_kickHandled || self.status != PlayerStatus.kicked) return;
+    _kickHandled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
+      final messenger = ScaffoldMessenger.of(context);
+      Navigator.of(context).pop();
+      messenger.showSnackBar(
+        const SnackBar(content: Text('ホストによってルームからキックされました')),
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final snapshot = widget.snapshot;
@@ -193,6 +212,7 @@ class _PlayContentState extends State<_PlayContent> {
     final players = state.seatedPlayers;
     final self = state.playerById(snapshot.selfPlayerId);
     final isHostViewer = room.hostPlayerId == snapshot.selfPlayerId;
+    _exitIfKicked(self);
 
     return Column(
       children: [
@@ -676,6 +696,14 @@ class _LobbyPanel extends StatelessWidget {
                           ),
                         ),
                       ),
+                      if (isHostViewer && !p.isHost)
+                        KickIconButton(
+                          onPressed: () => showKickConfirmDialog(
+                            context,
+                            controller: controller,
+                            player: p,
+                          ),
+                        ),
                       if (p.isHost)
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -755,34 +783,6 @@ class _TableArea extends StatelessWidget {
   final bool canUndo;
   final GameController controller;
 
-  void _confirmKick(BuildContext context, Player player) {
-    showAppDialog<void>(
-      context,
-      builder: (dialogContext) => AppDialog(
-        icon: Icons.person_remove_rounded,
-        iconColor: AppColors.chipRed,
-        title: 'プレイヤーをキック',
-        content: Text(
-          '${player.name} をキックしますか？\n(賭けていたチップはデッドマネーとしてポットに残ります)',
-        ),
-        actions: [
-          AppDialogCancelButton(onPressed: () => Navigator.pop(dialogContext)),
-          AppDialogDangerButton(
-            label: 'キックする',
-            onPressed: () {
-              Navigator.pop(dialogContext);
-              // ダイアログの終了アニメーションと同じフレームでルーム状態を書き換えると
-              // 「_dependents.isEmpty」クラッシュを誘発することがあるため、1フレーム遅らせる。
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                controller.kick(player.id);
-              });
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final room = state.room;
@@ -815,7 +815,8 @@ class _TableArea extends StatelessWidget {
             showUndo: showUndo,
             canKick: isHostViewer && !isSelf,
             onUndo: controller.undo,
-            onKick: () => _confirmKick(context, player),
+            onKick: () =>
+                showKickConfirmDialog(context, controller: controller, player: player),
           );
         }
 

@@ -7,8 +7,10 @@ import 'package:uuid/uuid.dart';
 
 import '../../core/constants.dart';
 import '../../domain/game_state.dart';
+import '../../domain/player_naming.dart';
 import '../../domain/poker_chip_engine.dart';
 import '../../models/enums.dart';
+import '../../models/player.dart';
 import '../../models/room.dart';
 import '../room_repository.dart';
 import '../room_snapshot.dart';
@@ -69,7 +71,7 @@ class SupabaseRoomRepository implements RoomRepository {
     await _client.from('players').insert({
       'id': hostId,
       'room_id': roomId,
-      'name': hostName.trim().isEmpty ? 'あなた' : hostName.trim(),
+      'name': resolvePlayerName(hostName, const []),
       'is_host': true,
       'chips': GameConstants.initialStack,
     });
@@ -100,10 +102,25 @@ class SupabaseRoomRepository implements RoomRepository {
     await _client.from('players').insert({
       'id': playerId,
       'room_id': roomId,
-      'name': playerName.trim().isEmpty ? 'あなた' : playerName.trim(),
+      'name': resolvePlayerName(playerName, const []),
       'is_host': false,
       'chips': startingStack,
     });
+
+    // RLSにより参加前は他プレイヤーの行が見えないため、参加後に同じルームの
+    // 名前を取得し、未入力時の自動命名や同名の重複を解消する。
+    final roommates = await _client
+        .from('players')
+        .select('name, status')
+        .eq('room_id', roomId)
+        .neq('id', playerId);
+    final takenNames = roommates
+        .where((row) => row['status'] != PlayerStatus.kicked.name)
+        .map((row) => row['name'] as String);
+    final resolvedName = resolvePlayerName(playerName, takenNames);
+    if (resolvedName != resolvePlayerName(playerName, const [])) {
+      await _client.from('players').update({'name': resolvedName}).eq('id', playerId);
+    }
 
     _selfPlayerId = playerId;
     _roomId = roomId;
@@ -164,13 +181,26 @@ class SupabaseRoomRepository implements RoomRepository {
     final roomId = _roomId;
     if (roomId == null) return;
     try {
-      final previous = recordHistory ? _currentState : null;
+      final current = _currentState;
+      final previous = recordHistory ? current : null;
       final roomUpdate = roomToRow(next.room)..remove('room_code');
       roomUpdate['previous_snapshot'] =
           previous == null ? null : gameStateToSnapshotJson(previous);
 
+      // 変更のあったプレイヤー行だけを書き込む。全行を書き戻すと、他の端末が
+      // ほぼ同時に書き込んだ内容(キックなど)を古い状態で上書きしてしまうため。
+      final currentRows = {
+        for (final p in current?.players ?? const <Player>[]) p.id: playerToRow(p),
+      };
+      final changedRows = next.players
+          .map(playerToRow)
+          .where((row) => !mapEquals(row, currentRows[row['id']]))
+          .toList();
+
       await _client.from('rooms').update(roomUpdate).eq('id', roomId);
-      await _client.from('players').upsert(next.players.map(playerToRow).toList());
+      if (changedRows.isNotEmpty) {
+        await _client.from('players').upsert(changedRows);
+      }
     } catch (e) {
       debugPrint('SupabaseRoomRepository write failed: $e');
     }

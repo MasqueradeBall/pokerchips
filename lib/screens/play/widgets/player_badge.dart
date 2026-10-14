@@ -34,7 +34,8 @@ class PlayerBadge extends StatelessWidget {
     final allIn = player.status == PlayerStatus.allIn;
 
     return GestureDetector(
-      onLongPress: canKick ? onKick : null,
+      // ホストは他プレイヤーのバッジをタップするとキックの確認を開ける。
+      onTap: canKick ? onKick : null,
       child: AnimatedOpacity(
         // フォールドしたらバッジ全体を沈ませ、状況をひと目でわかるようにする。
         opacity: folded ? 0.45 : 1.0,
