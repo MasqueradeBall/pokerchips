@@ -30,7 +30,18 @@ flutter emulators --launch Pixel_9
 flutter run           # Androidエミュレータ/実機で起動
 ```
 
-`google_mobile_ads` は Android / iOS のみ対応のため、Windows desktop / Web では実行できません。
+`google_mobile_ads` は Android / iOS のみ対応のため、Windows desktop では実行できません。
+
+### Web版 / GitHub Pages
+
+```bash
+flutter run -d chrome   # ブラウザで起動
+flutter build web --release --base-href /pokerchips/
+```
+
+- Web ビルドでは `lib/data/ads/ad_service.dart` の条件付きexportにより、広告SDKを使わない `ad_service_web.dart` が使われる。Web では広告を表示せず、動画リワード広告の視聴は常に完了扱い(ハート回復)になる。
+- `main` への push で `.github/workflows/deploy-web.yml` が Web 版をビルドし、GitHub Pages(`https://<owner>.github.io/pokerchips/`)へデプロイする。
+- 初回のみ、リポジトリの **Settings > Pages > Build and deployment > Source** を **GitHub Actions** に設定しておくこと。
 
 ### Supabase側の前提設定
 
