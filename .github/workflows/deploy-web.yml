@@ -32,6 +32,9 @@ jobs:
       # GitHub Pages は https://<user>.github.io/<repo>/ で配信されるため base-href にリポジトリ名を指定する
       - run: flutter build web --release --base-href "/${{ github.event.repository.name }}/"
 
+      # App Store 等で参照しているプライバシーポリシー/サポートページを従来と同じURLで配信し続ける
+      - run: cp privacy_policy.html support.html build/web/
+
       # SPA のため、存在しないパスへの直接アクセス時も index.html を返す
       - run: cp build/web/index.html build/web/404.html
 

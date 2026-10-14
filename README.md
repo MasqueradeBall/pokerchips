@@ -41,6 +41,7 @@ flutter build web --release --base-href /pokerchips/
 
 - Web ビルドでは `lib/data/ads/ad_service.dart` の条件付きexportにより、広告SDKを使わない `ad_service_web.dart` が使われる。Web では広告を表示せず、動画リワード広告の視聴は常に完了扱い(ハート回復)になる。
 - `main` への push で `.github/workflows/deploy-web.yml` が Web 版をビルドし、GitHub Pages(`https://<owner>.github.io/pokerchips/`)へデプロイする。
+- リポジトリ直下の `privacy_policy.html` / `support.html` も同じワークフローで Pages に含めて配信する。
 - 初回のみ、リポジトリの **Settings > Pages > Build and deployment > Source** を **GitHub Actions** に設定しておくこと。
 
 ### Supabase側の前提設定
